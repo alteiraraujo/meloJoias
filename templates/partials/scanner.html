@@ -1,0 +1,12 @@
+<div class="scanner-panel" id="scanner-panel" hidden>
+  <div class="scanner-heading">
+    <div><h3>Leitor de etiquetas</h3><p id="scanner-mode-description">Desligado · Adicione as peças manualmente.</p></div>
+    <label class="scanner-toggle" for="scanner-enabled"><input type="checkbox" role="switch" id="scanner-enabled" aria-controls="scanner-controls"><span>Ativar leitor</span></label>
+  </div>
+  <div id="scanner-controls" hidden>
+    <label for="scanner-code">Leia o EAN ou Código / SKU da etiqueta</label>
+    <div class="scanner-input-row"><input id="scanner-code" type="text" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="scanner-help scanner-feedback" disabled placeholder="Clique aqui e leia a etiqueta"><button class="button secondary" id="scan-add" type="button" disabled>Adicionar leitura</button></div>
+    <p id="scanner-help">Cada leitura adiciona 1 unidade. Configure o leitor para finalizar com Enter ou Tab. Se sair deste campo, clique nele antes da próxima leitura.</p>
+    <p id="scanner-feedback" role="status" aria-live="polite" aria-atomic="true">Aguardando leitura.</p>
+  </div>
+</div>

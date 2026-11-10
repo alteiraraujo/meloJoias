@@ -1,0 +1,66 @@
+{% load static money %}
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#181a19">
+  <title>{% block title %}{{ title|default:'Visão geral' }}{% endblock %} · Melo Joias</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=scanner-1">
+  <script src="{% static 'js/app.js' %}?v=scanner-1" defer></script>
+</head>
+<body>
+<svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+ <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+ <symbol id="i-gem" viewBox="0 0 24 24"><path d="m3 8 4-5h10l4 5-9 13L3 8Z"/><path d="M3 8h18M7 3l5 18 5-18M7 3l5 5 5-5"/></symbol>
+ <symbol id="i-box" viewBox="0 0 24 24"><path d="m3 7 9-4 9 4v10l-9 4-9-4V7Z"/><path d="m3 7 9 4 9-4M12 11v10M7.5 5l9 4"/></symbol>
+ <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2M16 5a3 3 0 0 1 0 6M21 20v-2a6 6 0 0 0-4-5.7"/></symbol>
+ <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></symbol>
+ <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20 13 11 22 2 13V3h10l8 8a1.5 1.5 0 0 1 0 2Z"/><circle cx="7" cy="8" r="1"/></symbol>
+ <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M20 7V4H5a3 3 0 0 0 0 6h16v10H5a3 3 0 0 1-3-3V7"/><path d="M21 12h-6v5h6"/><path d="M17.5 14.5h.01"/></symbol>
+ <symbol id="i-contact" viewBox="0 0 24 24"><rect x="5" y="3" width="15" height="18" rx="2"/><path d="M2 7h5M2 12h5M2 17h5"/><circle cx="12.5" cy="9" r="2.5"/><path d="M8.5 17a4 4 0 0 1 8 0"/></symbol>
+ <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+ <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+ <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+ <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+ <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+ <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18"/></symbol>
+ <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 4 5 5M3 21l5-1L21 7a2 2 0 0 0-4-4L4 16l-1 5Z"/></symbol>
+ <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
+ <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 2H4v20h16V8l-6-6Z"/><path d="M14 2v6h6M8 13h8m-8 4h6"/></symbol>
+ <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></symbol>
+ <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+ <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+ <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/></symbol>
+ <symbol id="i-trend" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-10M15 5h6v6"/></symbol>
+</svg>
+<a class="skip-link" href="#main">Pular para o conteúdo</a>
+<button class="sidebar-overlay" data-close-menu aria-label="Fechar menu" tabindex="-1"></button>
+<aside class="sidebar" id="sidebar">
+  <a class="brand" href="{% url 'dashboard' %}" aria-label="Melo Joias — início"><img src="{% static 'img/logo.png' %}" alt="Melo Joias"><span>GESTÃO DE CONSIGNAÇÕES</span></a>
+  <nav aria-label="Menu principal">
+    <p class="nav-label">SEU NEGÓCIO</p>
+    <a class="nav-item {% if nav_active == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}" {% if nav_active == 'dashboard' %}aria-current="page"{% endif %}><svg><use href="#i-grid"/></svg>Visão geral</a>
+    <a class="nav-item {% if nav_active == 'consignments' %}active{% endif %}" href="{% url 'consignment_list' %}" {% if nav_active == 'consignments' %}aria-current="page"{% endif %}><svg><use href="#i-box"/></svg>Consignações</a>
+    <a class="nav-item {% if nav_active == 'products' %}active{% endif %}" href="{% url 'entity_list' 'products' %}" {% if nav_active == 'products' %}aria-current="page"{% endif %}><svg><use href="#i-gem"/></svg>Produtos</a>
+    <a class="nav-item {% if nav_active == 'clients' %}active{% endif %}" href="{% url 'entity_list' 'clients' %}" {% if nav_active == 'clients' %}aria-current="page"{% endif %}><svg><use href="#i-users"/></svg>Clientes</a>
+    <p class="nav-label second">ORGANIZAÇÃO</p>
+    <a class="nav-item {% if nav_active == 'categories' %}active{% endif %}" href="{% url 'entity_list' 'categories' %}"><svg><use href="#i-tag"/></svg>Categorias</a>
+    <a class="nav-item {% if nav_active == 'costs' %}active{% endif %}" href="{% url 'entity_list' 'costs' %}"><svg><use href="#i-wallet"/></svg>Custos</a>
+    <a class="nav-item {% if nav_active == 'cost-types' %}active{% endif %}" href="{% url 'entity_list' 'cost-types' %}"><svg><use href="#i-file"/></svg>Tipos de custo</a>
+    <a class="nav-item {% if nav_active == 'contacts' %}active{% endif %}" href="{% url 'entity_list' 'contacts' %}"><svg><use href="#i-contact"/></svg>Contatos</a>
+  </nav>
+  <div class="sidebar-bottom"><a class="nav-item {% if nav_active == 'backups' %}active{% endif %}" href="{% url 'backups' %}"><svg><use href="#i-shield"/></svg>Backup e dados</a><div class="local-status"><span class="status-dot"></span><div>Ambiente local<small>Seus dados, no seu computador.</small></div></div></div>
+</aside>
+<div class="app-shell">
+  <header class="topbar"><div class="topbar-left"><button class="icon-button menu-toggle" data-open-menu aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false"><svg><use href="#i-menu"/></svg></button><span class="breadcrumb">Melo Joias <span>/</span> <strong>{{ title|default:'Visão geral' }}</strong></span></div><div class="topbar-right"><span class="top-date"><svg><use href="#i-calendar"/></svg>{{ date_today|date:'d \d\e F, Y' }}</span><span class="avatar" title="Melo Joias">MJ</span></div></header>
+  <main id="main" class="main-content">
+    {% if demo_mode %}<div class="demo-banner"><svg><use href="#i-info"/></svg><span><strong>Ambiente de demonstração.</strong> Os registros exibidos são exemplos para explorar o sistema.</span></div>{% endif %}
+    {% if messages %}<div class="messages" aria-live="polite">{% for message in messages %}<div class="alert {{ message.tags }}"><svg><use href="{% if message.tags == 'error' %}#i-info{% else %}#i-check{% endif %}"/></svg><span>{{ message }}</span><button class="icon-button" type="button" data-dismiss aria-label="Fechar aviso"><svg><use href="#i-close"/></svg></button></div>{% endfor %}</div>{% endif %}
+    {% block content %}{% endblock %}
+    <footer class="page-footer"><span>MELO JOIAS <span class="footer-separator">·</span> Cuidado em cada detalhe.</span><span><span class="small-dot"></span> SQLite local</span></footer>
+  </main>
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>
