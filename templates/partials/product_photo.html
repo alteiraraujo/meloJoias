@@ -1,0 +1,16 @@
+<div class="form-field full-width product-photo-field {% if field.errors %}has-error{% endif %}">
+  <label for="{{ field.id_for_label }}">Foto do produto</label>
+  <div class="product-photo-editor">
+    <div class="product-photo-frame">
+      <img id="product-photo-preview" {% if photo_preview_url %}src="{{ photo_preview_url }}" data-original-src="{{ photo_preview_url }}"{% else %}hidden{% endif %} alt="Prévia da foto do produto">
+      <span id="product-photo-empty" {% if photo_preview_url %}hidden{% endif %}><svg><use href="#i-gem"/></svg>Sem foto</span>
+    </div>
+    <div class="product-photo-controls">
+      <input type="file" name="photo" id="{{ field.id_for_label }}" accept="image/jpeg,image/png,image/webp" aria-describedby="product-photo-help product-photo-status">
+      <span class="field-help" id="product-photo-help">{{ field.help_text }}</span>
+      {% if photo_preview_url %}<label class="check-label"><input type="checkbox" name="photo-clear" id="photo-clear_id"> Remover foto atual ao salvar</label>{% endif %}
+      <span id="product-photo-status" class="field-help" role="status" aria-live="polite">{% if form.is_bound %}Se escolheu uma nova foto, selecione o arquivo novamente antes de salvar.{% endif %}</span>
+      {% for error in field.errors %}<span class="field-error">{{ error }}</span>{% endfor %}
+    </div>
+  </div>
+</div>

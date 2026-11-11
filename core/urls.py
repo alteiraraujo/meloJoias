@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path('media/<path:name>', views.product_photo, name='product_photo'),
     path('', views.dashboard, name='dashboard'),
     path('cadastros/<slug:entity>/', views.entity_list, name='entity_list'),
     path('cadastros/<slug:entity>/novo/', views.entity_form, name='entity_create'),
@@ -15,6 +16,12 @@ urlpatterns = [
     path('consignacoes/<int:pk>/acao/', views.consignment_action, name='consignment_action'),
     path('consignacoes/<int:pk>/recebimento/', views.payment_create, name='payment_create'),
     path('consignacoes/<int:pk>/imprimir/', views.consignment_print, name='consignment_print'),
+    path('consignacoes/<int:pk>/etiqueta-envio/', views.shipping_label, name='shipping_label'),
+    path('consignacoes/<int:pk>/etiqueta-envio/imprimir/', views.shipping_label_print, name='shipping_label_print'),
+    path('consignacoes/<int:pk>/rastreio/', views.consignment_tracking, name='consignment_tracking'),
+    path('consignacoes/<int:pk>/devolucoes/', views.consignment_returns, name='consignment_returns'),
+    path('consignacoes/<int:pk>/romaneio-assinado/anexar/', views.consignment_document_upload, name='consignment_document_upload'),
+    path('consignacoes/<int:pk>/romaneio-assinado/', views.consignment_document, name='consignment_document'),
     path('itens/<int:pk>/acerto/', views.item_settle, name='item_settle'),
     path('produtos/<int:pk>/estoque/', views.product_stock, name='product_stock'),
     path('produtos/<int:pk>/etiqueta/', views.product_label, name='product_label'),

@@ -1,0 +1,5 @@
+<section class="print-shipping" aria-label="Dados de envio">
+  <div class="shipping-line"><strong>Responsável pelo envio:</strong>{% if consignment.shipping_responsible %}<span>{{ consignment.shipping_responsible }}</span>{% else %}<span class="tracking-blank" aria-label="Espaço para preencher o responsável pelo envio"></span>{% endif %}</div>
+  <div class="shipping-line"><strong>Tipo de envio:</strong>{% if consignment.shipping_method %}<span>{{ consignment.shipping_method }}</span>{% else %}<span class="tracking-blank" aria-label="Espaço para preencher o tipo de envio"></span>{% endif %}</div>
+  <div class="shipping-line print-tracking"><strong>Código de rastreio:</strong>{% if consignment.tracking_code %}<span>{{ consignment.tracking_code }}</span>{% else %}<span class="tracking-blank" aria-label="Espaço para preencher o rastreio"></span>{% endif %}</div>
+</section>

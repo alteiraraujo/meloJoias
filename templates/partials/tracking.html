@@ -1,0 +1,10 @@
+<div class="tracking-section">
+  {% if consignment.status != 'cancelled' %}
+  <form method="post" action="{% url 'consignment_tracking' consignment.pk %}" class="tracking-form shipping-form">
+    {% csrf_token %}
+    {% for field in tracking_form %}{% include 'partials/field.html' %}{% endfor %}
+    <p class="field-help">Esses dados aparecem no romaneio. O rastreio pode ser preenchido após a postagem.</p>
+    <button type="submit" class="button secondary small">Salvar dados de envio</button>
+  </form>
+  {% else %}<dl class="shipping-readonly"><dt>Responsável pelo envio</dt><dd>{{ consignment.shipping_responsible|default:'Não informado' }}</dd><dt>Tipo de envio</dt><dd>{{ consignment.shipping_method|default:'Não informado' }}</dd><dt>Código de rastreio</dt><dd>{{ consignment.tracking_code|default:'Não informado' }}</dd></dl>{% endif %}
+</div>

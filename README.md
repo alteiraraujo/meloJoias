@@ -1,6 +1,6 @@
 # Melo Joias — consignação local
 
-Protótipo funcional para controlar produtos, categorias, custos por unidade, clientes, contatos de referência e consignações. A interface segue a marca Melo Joias, com preto, branco e tons neutros.
+Protótipo funcional para controlar produtos, categorias, custos por unidade, revendedoras, referências e consignações. A interface segue a marca Melo Joias, com preto, branco e tons neutros.
 
 ## Escolha técnica
 
@@ -41,6 +41,8 @@ O arquivo `requirements.txt` controla as dependências. Você não precisa insta
 | python-dotenv | `>=1,<2` | Leitura das configurações em `.env`. |
 | WhiteNoise | `>=6,<7` | Entrega dos arquivos CSS, JavaScript e imagens. |
 | python-barcode | `0.16.1` | Geração das barras EAN-13 para impressão. |
+| Pillow | `12.3.0` | Validação e preparação das fotos dos produtos. |
+| pypdf | `7.0.0` | Validação dos romaneios anexados em PDF. |
 
 **SQLite já acompanha o Python** e o instalador cria o arquivo do banco. Para a instalação padrão, não é necessário instalar PostgreSQL, MySQL, Node.js, Docker ou um servidor web separado.
 
@@ -83,15 +85,53 @@ O arquivo `.env` é criado automaticamente a partir de `.env.example`. As config
 ## Fluxo de uso
 
 1. Cadastre categorias, tipos de custo e produtos; informe código, preço, estoque inicial e componentes de custo por unidade.
-2. Cadastre a cliente e os contatos vinculados a ela.
-3. Crie uma consignação em rascunho com cliente, datas de envio/acerto e contatos de referência da mesma cliente. Adicione os produtos e quantidades.
-4. Confirme o envio. O sistema verifica saldo e retira do estoque as unidades enviadas em uma transação.
+2. Cadastre a revendedora e as referências vinculadas a ela.
+3. Crie uma consignação AGUARDANDO ENVIO com revendedora, datas de envio/acerto e referências da mesma revendedora. Adicione os produtos e quantidades.
+4. Confirme o envio para mudar para **EM TRÂNSITO**. O sistema verifica saldo e retira do estoque as unidades enviadas em uma transação.
 5. Registre vendas, devoluções e pagamentos. Devoluções recompõem o estoque. O saldo financeiro considera somente peças vendidas, menos pagamentos.
-6. Encerre após resolver todas as peças e quitar o saldo. O histórico preserva nome, código, preço e custo do produto no envio.
+6. Finalize após resolver todas as peças e quitar o saldo, mudando para **FINALIZADO**. O histórico preserva nome, código, preço e custo do produto no envio.
 
 O cadastro de custos representa componentes do **custo por unidade do produto**, como compra, banho, embalagem ou frete rateado. Não é um módulo de despesas gerais, contabilidade, emissão fiscal ou contas a pagar. Quantidades são inteiras e valores são registrados em reais com duas casas decimais.
 
+O fluxo principal é **AGUARDANDO ENVIO → EM TRÂNSITO → FINALIZADO**. O cancelamento antes do envio permanece como situação excepcional. Um prazo vencido é indicado separadamente e não substitui a etapa da consignação.
+
 ## Estrutura e atualizações
+
+### Fotos dos produtos
+
+Cada produto pode ter uma foto opcional. Em **Produtos → Novo produto / Editar**, selecione uma imagem JPG, PNG ou WebP de até **5 MB e 20 megapixels**. Confira a prévia e clique em **Salvar cadastro**. A aplicação corrige a orientação, reduz para até 1600 px e grava uma cópia JPEG sem metadados da câmera. A listagem mostra uma miniatura; produtos sem foto continuam funcionando normalmente.
+
+Para trocar, selecione outro arquivo e salve. Para remover a associação, marque **Remover foto atual ao salvar**. Os arquivos antigos são preservados no disco para evitar perda em backups e operações simultâneas; não são mais exibidos no cadastro. Após erro de validação em outro campo, selecione novamente a nova imagem antes de reenviar o formulário.
+
+As fotos ficam em `data/media/products/`; a demonstração usa `data/demo-media/products/`. Elas não são enviadas à nuvem nem incluídas no pacote de código-fonte. Use o backup completo para transferi-las junto com o banco.
+
+### Responsável, tipo de envio e rastreio no romaneio
+
+Os campos opcionais **Responsável pelo envio**, **Tipo de envio** e **Código de rastreio** ficam no cadastro da consignação. Informe o nome de quem enviará as peças e a modalidade, por exemplo PAC, SEDEX, transportadora, motoboy ou retirada. O tipo de envio aceita texto livre. Os dados também podem ser preenchidos ou corrigidos em **Detalhes da consignação → Sobre o envio → Salvar dados de envio**, inclusive depois de confirmar o envio ou finalizar. Consignações canceladas permitem apenas consulta. A alteração não movimenta estoque nem modifica os itens enviados.
+
+Os três campos aparecem juntos no **Romaneio → Imprimir / salvar PDF**. Campos vazios mantêm espaço para preenchimento à mão; o nome do responsável também aparece na linha de assinatura do envio. O rastreio apenas registra o código; não consulta automaticamente a entrega nos Correios. Alterar esses dados não modifica um PDF assinado já anexado: esse arquivo original permanece preservado. A migração `0009` adiciona os campos de responsável e tipo de envio sem alterar os rastreios existentes.
+
+### Etiqueta de endereçamento da maleta
+
+Abra **Consignação → Etiqueta da maleta**. A etiqueta utiliza o nome, telefone e endereço da revendedora vinculada ao romaneio. Preencha no cadastro os campos **CEP, logradouro, número, complemento, bairro, cidade e UF**; complemento e telefone são opcionais. O endereço anterior em texto livre continua preservado. Quando os campos separados estiverem completos, o romaneio também passa a exibir esse endereço.
+
+Na mesma tela, cadastre o **remetente e endereço de origem** uma vez. Esses dados ficam no banco local e são reutilizados nas próximas etiquetas. O nome do responsável pelo envio não substitui o endereço do remetente. A impressão fica disponível somente com ambos os endereços completos. A validação do CEP confere o formato de oito dígitos, sem consulta automática à base dos Correios.
+
+Use **Visualizar / imprimir etiqueta → Imprimir / salvar PDF**. O formato é **106,36 mm de largura × 138,11 mm de altura**, em folha **A4**, com escala **100%**, sem cabeçalhos ou rodapés. Recorte pela borda; a etiqueta deve ficar inteira numa face da embalagem. A impressão acompanha o modelo de endereçamento para postagem na agência descrito no [Guia dos Correios](https://www.correios.com.br/enviar/precisa-de-ajuda/guia-de-enderecamento/guia-de-enderecamento), com área exclusiva para o identificador postal, destinatário destacado, remetente e campos de recebimento. Use ao menos 240 dpi. Endereços extensos são ajustados até 9 pt; se ainda não couberem, a impressão é bloqueada para revisão dos campos, sem cortar informações.
+
+Esta é uma **etiqueta de endereçamento**, sem contratação de frete, código de postagem gerado ou integração com a API dos Correios. O comprovante de postagem e os rótulos de frete são emitidos pelos Correios; para uma postagem contratual, utilize o rótulo do serviço contratado. A etiqueta não expõe CPF, valores ou produtos da consignação e não autoriza entrega a vizinhos. Os PDFs assinados já anexados permanecem intactos.
+
+A migração `0010` adiciona os campos de endereço e a tabela do remetente sem converter automaticamente textos antigos. O backup do banco já inclui esses dados. Não é necessário instalar outra ferramenta além das dependências existentes.
+
+### Romaneio assinado em PDF
+
+Em **Detalhes da consignação → Romaneio assinado**, selecione o PDF recebido da revendedora e clique em **Anexar PDF assinado**. São aceitos PDFs válidos, com páginas, sem senha ou criptografia, de até **20 MB**. O envio é opcional e está disponível também em consignações finalizadas. Anexar o documento não altera situação, estoque ou valores.
+
+Após salvar, use **Abrir PDF** ou **Baixar PDF**. Para corrigir um anexo, escolha outro PDF, marque a confirmação de substituição e clique em **Substituir PDF**. A tela apresenta um documento atual por consignação e a data do upload. Após erro de validação, selecione novamente o arquivo.
+
+O conteúdo original é armazenado sem regravar o PDF; a aplicação não verifica a autenticidade das assinaturas. A validação estrutural usa [PdfReader do pypdf](https://pypdf.readthedocs.io/en/stable/modules/PdfReader.html). Os arquivos ficam em `data/media/signed-documents/` (demonstração: `data/demo-media/signed-documents/`). Arquivos substituídos permanecem no disco para preservar backups anteriores; não aparecem como histórico na interface.
+
+O backup completo inclui os PDFs atualmente vinculados às consignações, mesmo quando não há fotos de produtos. Restaure o banco e toda a pasta de mídia do ZIP juntos. Para atualizar outra instalação, execute `INSTALAR.bat`, que instala `pypdf` e aplica a migração dos campos do documento sem apagar registros.
 
 ### Etiquetas e leitor óptico
 
@@ -99,19 +139,27 @@ Cada produto recebe automaticamente um EAN-13 interno único, com dígito verifi
 
 Em **Produtos**, abra o ícone de etiqueta na listagem ou **Visualizar / imprimir etiqueta** na edição do produto. A etiqueta contém marca, nome, SKU, preço, barras e EAN legível. O formato inicial é **60 × 65 mm**; use papel compatível, escala 100%, sem cabeçalhos ou rodapés. Confira uma impressão com seu leitor antes de produzir várias etiquetas.
 
-Na criação ou edição de uma consignação em rascunho, marque **Ativar leitor** na seção de peças. Clique no campo de leitura e escaneie a etiqueta. São compatíveis leitores USB/Bluetooth que funcionam como teclado, com sufixo **Enter** ou **Tab**; também é possível digitar o código e clicar em **Adicionar leitura**. A aplicação não usa câmera e não exige internet.
+Na criação ou edição de uma consignação AGUARDANDO ENVIO, marque **Ativar leitor** na seção de peças. Clique no campo de leitura e escaneie a etiqueta. São compatíveis leitores USB/Bluetooth que funcionam como teclado, com sufixo **Enter** ou **Tab**; também é possível digitar o código e clicar em **Adicionar leitura**. A aplicação não usa câmera e não exige internet.
 
-Cada leitura adiciona uma unidade pelo EAN ou pelo SKU exato (inclusive zeros à esquerda). Uma peça já selecionada tem sua quantidade incrementada sem perder o preço negociado. Códigos desconhecidos, inativos ou ambíguos e quantidades acima do estoque exibido são recusados. O estoque é novamente validado no servidor ao confirmar o envio. A leitura apenas preenche o formulário: clique em **Salvar rascunho** para persistir as peças.
+Cada leitura adiciona uma unidade pelo EAN ou pelo SKU exato (inclusive zeros à esquerda). Uma peça já selecionada tem sua quantidade incrementada sem perder o preço negociado. Códigos desconhecidos, inativos ou ambíguos e quantidades acima do estoque exibido são recusados. O estoque é novamente validado no servidor ao confirmar o envio. A leitura apenas preenche o formulário: clique em **Salvar consignação** para persistir as peças.
 
 Desmarque **Ativar leitor** para usar somente a seleção manual. A preferência é lembrada neste navegador; itens já incluídos permanecem na lista. A leitura é capturada apenas no campo específico para não interferir nas observações e demais cadastros. Ao editar outro campo, clique novamente no campo de leitura antes de escanear.
 
 Para atualizar outra instalação, execute `INSTALAR.bat`: a nova dependência `python-barcode` e a migração `0002_product_ean13` são necessárias. Faça backup antes da atualização.
 
-O mapa das **11 tabelas de negócio** e suas relações está em [docs/database.md](docs/database.md). As migrações Django em `core/migrations` são a fonte de criação e atualização do esquema; o SQL de referência está em `docs/schema.sql`. Também existem tabelas internas do Django para sessões, permissões e controle das migrações.
+O mapa das **12 tabelas de negócio** e suas relações está em [docs/database.md](docs/database.md). As migrações Django em `core/migrations` são a fonte de criação e atualização do esquema; o SQL de referência está em `docs/schema.sql`. Também existem tabelas internas do Django para sessões, permissões e controle das migrações.
 
 O SQLite trabalha com transações `IMMEDIATE` e espera de até 20 segundos para escritas concorrentes. Não coloque o arquivo do banco em uma pasta de rede nem use este protótipo como servidor para vários computadores. PostgreSQL permanece uma opção de configuração para experimentar depois.
 
 Ao atualizar a aplicação, faça backup, instale as dependências e execute `scripts\setup.py`. O instalador aplica apenas migrações pendentes e preserva os registros existentes. Não apague migrações ou tabelas manualmente.
+
+### Devolução por leitura
+
+Abra uma consignação **EM TRÂNSITO** com peças pendentes e ative o **Leitor de devoluções**. Clique no campo de leitura e leia o EAN ou SKU das peças recebidas, terminando cada leitura com Enter ou Tab. Cada bip soma uma unidade à conferência. O SKU registrado no envio também é reconhecido, mesmo que o cadastro tenha sido alterado; produtos inativos podem ser devolvidos.
+
+Confira as quantidades, ajuste ou remova peças se necessário e clique em **Confirmar devolução**. Somente essa confirmação registra a devolução e repõe o estoque. Códigos de outra consignação e quantidades acima do saldo pendente são recusados. O lote inteiro é validado antes de gravar; uma tentativa repetida ou um acerto alterado em outra página exige recarregar e conferir o saldo.
+
+É possível desligar o leitor e continuar usando o acerto manual de cada produto. A preferência do leitor de devoluções é independente da leitura no envio. A conferência ainda não confirmada não é salva ao fechar a página. Se a conexão falhar na confirmação, recarregue para conferir o que foi registrado antes de tentar novamente. A validação automatizada simula o teclado; confira também o leitor físico e as etiquetas impressas.
 
 ## Backup e restauração
 
@@ -125,6 +173,8 @@ O arquivo é gravado em `backups\melo_joias_DATA_HORA_ID.sqlite3`. A demonstraç
 
 O backup contém todas as tabelas e registros. Configuração `.env` e chave `data/.secret_key` ficam fora do banco; mantenha uma cópia protegida desses arquivos junto com o projeto. Copie backups importantes para outra unidade ou mídia.
 
+**Quando há fotos ou PDFs assinados**, o arquivo entregue passa a ser um **ZIP com o banco e os anexos**. Na instalação padrão ele contém `data/melo.sqlite3` e os anexos em `data/media/`; na demonstração, `data/demo.sqlite3` e os anexos em `data/demo-media/`. A cópia isolada do banco também fica na pasta de backups, mas não contém fotos nem PDFs. Se um anexo referenciado estiver ausente, o sistema informa a falha em vez de entregar um backup completo sem o arquivo.
+
 Para restaurar seus cadastros:
 
 1. Encerre a aplicação com `Ctrl+C` e feche outras instâncias do sistema.
@@ -133,6 +183,10 @@ Para restaurar seus cadastros:
 4. Abra `INICIAR.bat` e confira os cadastros e saldos. Se o backup for de versão anterior do aplicativo, execute primeiro `scripts\setup.py`.
 
 Os backups incluem dados pessoais dos cadastros. Mantenha-os em local protegido e teste a restauração antes de depender do sistema para dados definitivos.
+
+Para restaurar um **ZIP com fotos ou PDFs**, feche o sistema, guarde uma cópia do banco e da pasta de imagens atuais e extraia o ZIP em uma pasta separada. Copie o banco restaurado para o caminho correspondente e copie também a pasta `media` (ou `demo-media`) para `data`, preservando seus nomes internos. Se utilizar `MELO_DATA_DIR`, use a pasta configurada em vez de `data`. Abra o sistema e confira os cadastros e as imagens. Um backup antigo que contém somente `.sqlite3` não recupera fotos nem PDFs.
+
+No PostgreSQL, um ZIP com fotos contém `data/database.dump` e a pasta de imagens; restaure o `.dump` com `pg_restore` conforme a seção abaixo e copie a pasta de imagens separadamente.
 
 ## PostgreSQL opcional
 

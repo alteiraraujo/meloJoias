@@ -1,0 +1,20 @@
+{% if consignment.status == 'sent' and consignment.pending_quantity %}
+<section class="panel extra-panel" id="return-scanner" hidden>
+  <header class="panel-header"><div><h2>Devolução por leitura</h2><p>Confira as peças recebidas e confirme para devolvê-las ao estoque.</p></div></header>
+  <form id="return-scan-form" action="{% url 'consignment_returns' consignment.pk %}" method="post">
+    {% csrf_token %}
+    <div class="scanner-panel">
+      <div class="scanner-heading"><div><h3>Leitor de devoluções</h3><p id="return-mode">Desligado · Use o acerto manual abaixo ou ative o leitor.</p></div><label class="scanner-toggle" for="return-enabled"><input id="return-enabled" type="checkbox" role="switch" aria-controls="return-controls"><span>Ativar leitor</span></label></div>
+      <div id="return-controls" hidden>
+        <label for="return-code">Leia o EAN ou Código / SKU da peça devolvida</label>
+        <div class="scanner-input-row"><input id="return-code" type="text" autocomplete="off" spellcheck="false" autocapitalize="off" disabled placeholder="Clique aqui e leia a etiqueta" aria-describedby="return-help return-feedback"><button class="button secondary" id="return-add" type="button" disabled>Adicionar leitura</button></div>
+        <p id="return-help">Cada leitura soma 1 unidade à conferência. Finalize com Enter ou Tab. O estoque muda somente ao confirmar a devolução.</p>
+      </div>
+      <p id="return-feedback" role="status" aria-live="polite" aria-atomic="true">Nenhuma peça lida nesta conferência.</p>
+    </div>
+    <div class="table-wrap" id="return-cart-wrap" hidden><table class="data-table return-cart"><thead><tr><th>Produto</th><th>Pendente</th><th>Devolver agora</th><th>Remover</th></tr></thead><tbody id="return-cart"></tbody></table></div>
+    <div class="return-actions"><span><strong id="return-total">0</strong> unidade(s) para devolver</span><button class="button secondary" type="button" id="return-clear" disabled>Limpar conferência</button><button class="button primary" type="submit" id="return-confirm" disabled>Confirmar devolução</button></div>
+  </form>
+</section>
+{{ return_item_data|json_script:'return-item-data' }}
+{% endif %}

@@ -81,7 +81,8 @@ class LabelMigrationTests(TransactionTestCase):
             second = ProductBefore.objects.create(sku='OLD-02', name='Outro existente',
                 category=category, sale_price=1, stock_quantity=0)
         finally:
-            MigrationExecutor(connection).migrate([('core', '0002_product_ean13')])
+            executor = MigrationExecutor(connection)
+            executor.migrate(executor.loader.graph.leaf_nodes())
         product = Product.objects.get(pk=first.pk)
         self.assertEqual(product.sku, first.sku)
         self.assertEqual(product.sale_price, Decimal('57.90'))

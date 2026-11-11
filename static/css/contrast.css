@@ -1,0 +1,39 @@
+/* Increased screen contrast; print layouts use their own styles. */
+@media screen {
+  :root { --ink:#202020; --muted:#4d4d4d; --soft:#595959; --sidebar:#080808; --amber:#785514; --danger:#963f3b; }
+  .sidebar { background:#080808; color:#e4e4e4; }
+  .brand { border-bottom-color:#303030; }
+  .brand img { filter:none; }
+  .brand span,.nav-label,.local-status small { color:#b5b5b5; }
+  .nav-item svg { color:#cecece; }
+  .nav-item:hover { background:#202020; color:#fff; }
+  .nav-item.active { background:#f2f2f2; color:#141414; }
+  .nav-item.active svg { color:#252525; }
+  .local-status { color:#e2e2e2; border-top-color:#303030; }
+  .button.primary { background:#171717; border-color:#171717; }
+  .button.primary:hover:not(:disabled) { background:#303030; }
+  .breadcrumb,.top-date,.page-footer,.metric-top,.metric-value small,.metric-foot,
+  .panel-header p:not(.eyebrow),.panel-bottom,.panel-bottom.text-link,
+  .category-row>div:first-child,.category-row strong small,.attention-row span:not(.initial-avatar),
+  .stock-row .grow>span,.quick-start p,.quick-links a,.table-secondary,.table-count,
+  .empty-state p,.calm-state p,.field-help,.aside-note p,.aside-note-foot,.consignment-total,
+  .form-bottom-note,.contacts-empty,.detail-list dt,.client-summary span:not(.initial-avatar),
+  .reference-line>div,.reference-line p,.notes-block,.settlement-form label,.lifecycle-footer,
+  .backup-hero>p,.backup-tips p { color:#4d4d4d; }
+  .data-table th { color:#3e3e3e; font-weight:600; }
+  .data-table td,.data-table .table-primary,.stock-number,.category-row strong,
+  .attention-row strong,.stock-row strong,.quick-start h3,.empty-state h3,.calm-state strong,
+  .form-field label,.form-field .field-label,.aside-note h3,.form-field #id_contacts label,
+  .detail-list dd,.contact-row .table-primary,.client-summary strong,.lifecycle-footer h3,
+  .backup-tips h3,.item-form-table .row-total { color:#292929; }
+  input:not([type=checkbox]):not([type=radio]),select,textarea { color:#252525; }
+  input::placeholder,textarea::placeholder { color:#666; opacity:1; }
+  .text-link,.back-link,.icon-button,.count-badge,.initial-avatar,.step-number { color:#454d40; }
+  .badge.success,.settled-label,.alert { color:#345d32; }
+  .badge.warning,.pending-number,.alert.warning,.demo-banner { color:#71531b; }
+  .badge.danger,.field-error,.alert.error { color:#913c36; }
+  .badge.neutral { color:#4b5146; }
+  .metric-card.dark { background:#171717; border-color:#171717; color:#fff; }
+  .metric-card.dark .metric-top,.metric-card.dark .metric-foot { color:#d0d0d0; }
+  .metric-card.dark .metric-icon { background:#303030; color:#e3e3e3; }
+}

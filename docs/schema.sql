@@ -3,6 +3,15 @@
 -- Atualizacao: 0002_product_ean13 adiciona e preenche core_product.ean13
 -- (varchar(13), NOT NULL, UNIQUE). O preenchimento usa uma migracao Python;
 -- este arquivo historico nao substitui a execucao das migracoes Django.
+-- 0003_product_photo adiciona core_product.photo (caminho da foto local).
+-- 0004_consignment_tracking adiciona core_consignment.tracking_code.
+-- 0008_consignment_signed_document adiciona signed_document (caminho do PDF)
+-- e signed_document_uploaded_at (data/hora do upload) a core_consignment.
+-- 0009_consignment_shipping_details adiciona shipping_responsible (varchar(160))
+-- e shipping_method (varchar(80)), opcionais, a core_consignment.
+-- 0010_postal_addresses_and_sender cria core_senderprofile e adiciona os campos
+-- postais a core_client: postal_code, street, number, complement, neighborhood,
+-- city e state. O campo address anterior e seus valores sao preservados.
 
 BEGIN;
 --

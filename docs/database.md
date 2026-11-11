@@ -1,17 +1,18 @@
 # Estrutura do banco — Melo Joias
 
-SQLite local, sem serviço de banco ou conexão com a nuvem. O Django cria e atualiza a estrutura por migrações. Os nomes abaixo correspondem às 11 tabelas de negócio.
+SQLite local, sem serviço de banco ou conexão com a nuvem. O Django cria e atualiza a estrutura por migrações. Os nomes abaixo correspondem às 12 tabelas de negócio.
 
 | Tabela | Finalidade e campos principais |
 |---|---|
 | `core_category` | Categoria: nome único, descrição, ativa. |
-| `core_product` | Produto: SKU único, EAN-13 interno único, nome, categoria, descrição, preço de venda, estoque disponível, estoque mínimo, ativo. |
+| `core_product` | Produto: SKU único, EAN-13 interno único, nome, categoria, descrição, foto opcional (caminho local), preço de venda, estoque disponível, estoque mínimo, ativo. |
 | `core_costtype` | Tipo de custo: nome único, descrição, ativo. |
 | `core_productcost` | Custo unitário do produto: produto, tipo de custo, descrição, valor. |
-| `core_client` | Cliente: nome, CPF/CNPJ, telefone, e-mail, endereço, observações, ativa. |
-| `core_contact` | Contato da cliente: cliente, nome, vínculo/referência, telefone, e-mail, observações. |
-| `core_consignment` | Consignação: cliente, data de envio, data de acerto, situação, observações. |
-| `core_consignmentcontact` | Referências da consignação: consignação e contato, sem duplicatas. |
+| `core_senderprofile` | Remetente reutilizado nas etiquetas: nome, telefone, CEP, logradouro, número, complemento, bairro, cidade e UF. A interface usa o registro de ID 1. |
+| `core_client` | Revendedora: nome, CPF/CNPJ, telefone, e-mail, endereço anterior em texto livre, CEP, logradouro, número, complemento, bairro, cidade, UF, observações, ativa. |
+| `core_contact` | Referência da revendedora: revendedora, nome, vínculo/referência, telefone, e-mail, observações. |
+| `core_consignment` | Consignação: revendedora, data de envio, data de acerto, código de rastreio opcional, situação, observações. |
+| `core_consignmentcontact` | Referências da consignação: consignação e referência, sem duplicatas. |
 | `core_consignmentitem` | Peça consignada: produto, consignação, quantidades enviadas/vendidas/devolvidas, preço, nome/SKU/custo preservados no envio. |
 | `core_payment` | Pagamento vinculado à consignação: valor, data, forma e observações. |
 | `core_stockmovement` | Histórico de movimentações: produto, consignação quando aplicável, tipo, quantidade assinada, observação e data/hora. |
@@ -39,10 +40,10 @@ erDiagram
 - SKU, EAN-13 interno, nomes de categorias e nomes dos tipos de custo têm unicidade.
 - A migração `0002_product_ean13` preenche o EAN nos produtos existentes antes de aplicar obrigatoriedade e unicidade. O EAN é gerado na criação de novos produtos e preservado em edições; não substitui o SKU histórico. É um código interno de circulação restrita, não um GTIN comercial registrado.
 - Restrições impedem estoque/preços negativos, itens com quantidade zero, quantidades vendidas mais devolvidas maiores que as enviadas e acerto anterior ao envio.
-- A combinação de consignação/produto é única por item, assim como consignação/contato nas referências.
-- Contatos de referência são validados para pertencer à mesma cliente da consignação.
+- A combinação de consignação/produto é única por item, assim como consignação/referência nas referências.
+- Referências são validadas para pertencer à mesma revendedora da consignação.
 - Envio, devolução, pagamento, ajuste e encerramento passam por operações transacionais. No SQLite, `IMMEDIATE` reserva a escrita antes de ler o saldo, e o tempo de espera é de 20 segundos. Duas saídas simultâneas não podem consumir o mesmo estoque.
-- Produtos e clientes usados em históricos têm exclusão protegida. A interface oferece inativação de cadastros onde aplicável.
+- Produtos e revendedoras usados em históricos têm exclusão protegida. A interface oferece inativação de cadastros onde aplicável.
 - Preço, custo, nome e código dos itens enviados ficam preservados para consultas futuras.
 
 ## Estoque e acerto
@@ -65,6 +66,10 @@ Pagamentos são limitados ao saldo das vendas já informadas. Uma consignação 
 Os valores calculados não são gravados como colunas duplicadas. A identificação visível `MJ-0001` deriva da chave numérica da consignação. O alerta de atraso considera somente remessas em andamento com prazo anterior à data local em `America/Sao_Paulo`.
 
 ## Arquivos e demonstração
+
+Os dados de envio ficam em `core_consignment`: `tracking_code` (até 80 caracteres), `shipping_responsible` (nome do responsável, até 160 caracteres) e `shipping_method` (tipo de envio livre, até 80 caracteres). Todos são opcionais. A migração `0009` adiciona os dois últimos e preserva o rastreio existente.
+
+O romaneio assinado utiliza `core_consignment.signed_document` (caminho relativo do PDF) e `signed_document_uploaded_at` (data/hora do upload), adicionados pela migração `0008`. O arquivo original fica em `MEDIA_ROOT/signed-documents/` e integra o backup completo. A substituição atualiza somente esses campos e `updated_at`; não altera situação ou estoque.
 
 O banco de trabalho padrão fica em `data/melo.sqlite3`. A demonstração usa outro arquivo, `data/demo.sqlite3`, quando `MELO_DEMO_MODE=1`. O comando explícito `seed_demo` cria dados fictícios somente em um banco sem cadastros; ele nunca é executado ao simplesmente abrir a aplicação. O instalador de demonstração seleciona o arquivo separado.
 

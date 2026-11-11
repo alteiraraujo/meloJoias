@@ -1,5 +1,6 @@
 from decimal import Decimal
 from pathlib import Path
+import json
 
 from django.conf import settings
 from django.contrib import messages
@@ -8,15 +9,16 @@ from django.core.paginator import Paginator
 from django.db import IntegrityError, transaction
 from django.db.models import F, Q, Sum
 from django.db.models.deletion import ProtectedError
-from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from . import forms, services
+from .addresses import address_missing
 from .models import (Category, Product, CostType, ProductCost, Client, Contact,
-                     Consignment, ConsignmentItem, Payment, StockMovement)
+                     Consignment, ConsignmentItem, Payment, StockMovement, SenderProfile)
 from .templatetags.money import brl
 
 
@@ -25,8 +27,8 @@ ENTITIES = {
     'categories': (Category, forms.CategoryForm, 'Categorias', 'Organize as peças da sua coleção.', 'Nova categoria'),
     'cost-types': (CostType, forms.CostTypeForm, 'Tipos de custo', 'Defina os componentes do custo de cada peça.', 'Novo tipo de custo'),
     'costs': (ProductCost, forms.ProductCostForm, 'Custos', 'Composição do custo por unidade de cada produto.', 'Novo custo'),
-    'clients': (Client, forms.ClientForm, 'Clientes', 'Relacionamentos que fazem sua marca crescer.', 'Nova cliente'),
-    'contacts': (Contact, forms.ContactForm, 'Contatos', 'Referências e contatos vinculados às suas clientes.', 'Novo contato'),
+    'clients': (Client, forms.ClientForm, 'Revendedoras', 'Relacionamentos que fazem sua marca crescer.', 'Nova revendedora'),
+    'contacts': (Contact, forms.ContactForm, 'Referências', 'Referências vinculadas às suas revendedoras.', 'Nova referência'),
 }
 
 
@@ -88,12 +90,12 @@ def entity_list(request, entity):
     elif entity == 'clients':
         if q:
             queryset = queryset.filter(Q(name__icontains=q) | Q(document__icontains=q) | Q(phone__icontains=q))
-        columns = ['Cliente', 'Telefone', 'E-mail', 'Documento', 'Situação']
+        columns = ['Revendedora', 'Telefone', 'E-mail', 'Documento', 'Situação']
     elif entity == 'contacts':
         queryset = queryset.select_related('client')
         if q:
             queryset = queryset.filter(Q(name__icontains=q) | Q(client__name__icontains=q) | Q(phone__icontains=q))
-        columns = ['Contato', 'Cliente', 'Vínculo', 'Telefone', 'E-mail']
+        columns = ['Referência', 'Revendedora', 'Vínculo', 'Telefone', 'E-mail']
     elif entity == 'costs':
         queryset = queryset.select_related('product', 'cost_type')
         if q:
@@ -132,12 +134,18 @@ def entity_list(request, entity):
 def entity_form(request, entity, pk=None):
     model, form_class, title, subtitle, create_label = entity_config(entity)
     obj = get_object_or_404(model, pk=pk) if pk else None
+    label_consignment = None
+    return_id = request.GET.get('return_to_consignment', '')
+    if entity == 'clients' and pk and return_id.isdigit():
+        label_consignment = Consignment.objects.filter(pk=return_id, client_id=pk).first()
+    photo_preview_url = obj.photo.url if entity == 'products' and obj and obj.photo else ''
     initial = {}
     for field in ('client', 'product'):
         value = request.GET.get(field, '')
         if value.isdigit():
             initial[field] = int(value)
-    form = form_class(request.POST or None, instance=obj, initial=initial)
+    form = form_class(request.POST if request.method == 'POST' else None,
+                      request.FILES if request.method == 'POST' else None, instance=obj, initial=initial)
     if request.method == 'POST' and form.is_valid():
         try:
             with transaction.atomic():
@@ -149,6 +157,8 @@ def entity_form(request, entity, pk=None):
                 if entity == 'products' and not pk and form.cleaned_data.get('initial_stock'):
                     services.adjust_stock(saved, form.cleaned_data['initial_stock'], 'Estoque inicial do cadastro')
             messages.success(request, 'Cadastro salvo com sucesso.')
+            if label_consignment:
+                return redirect('shipping_label', pk=label_consignment.pk)
             return redirect('entity_list', entity=entity)
         except ValidationError as error:
             form.add_error(None, error)
@@ -156,8 +166,9 @@ def entity_form(request, entity, pk=None):
             form.add_error(None, 'Já existe um cadastro com estes dados. Confira o código ou o nome informado.')
     return render(request, 'entity_form.html', {
         'nav_active': entity, 'entity': entity, 'form': form, 'object': obj,
+        'photo_preview_url': photo_preview_url,
         'title': f'Editar {model._meta.verbose_name}' if pk else create_label,
-        'subtitle': subtitle, 'back_url': reverse('entity_list', args=[entity]),
+        'subtitle': subtitle, 'back_url': reverse('shipping_label', args=[label_consignment.pk]) if label_consignment else reverse('entity_list', args=[entity]),
         'product_costs': obj.costs.select_related('cost_type') if entity == 'products' and obj else [],
         'stock_form': forms.StockForm() if entity == 'products' and obj else None,
     })
@@ -227,7 +238,7 @@ def _consignment_form(request, instance):
                     form.save_m2m()
                     formset.instance = saved
                     formset.save()
-                messages.success(request, 'Rascunho salvo. Confira as peças e confirme o envio para movimentar o estoque.')
+                messages.success(request, 'Consignação salva como AGUARDANDO ENVIO. Confira as peças e confirme o envio para movimentar o estoque.')
                 return redirect('consignment_detail', pk=saved.pk)
             except ValidationError as error:
                 form.add_error(None, error)
@@ -252,18 +263,129 @@ def consignment_create(request):
 def consignment_edit(request, pk):
     instance = get_object_or_404(Consignment, pk=pk)
     if instance.status != 'draft':
-        messages.error(request, 'Somente rascunhos podem ser editados.')
+        messages.error(request, 'Somente consignações aguardando envio podem ser editadas.')
         return redirect('consignment_detail', pk=pk)
     return _consignment_form(request, instance)
 
 
-def consignment_detail(request, pk):
+def shipping_label(request, pk):
+    consignment = get_object_or_404(Consignment.objects.select_related('client'), pk=pk)
+    sender = SenderProfile.objects.filter(pk=1).first() or SenderProfile(pk=1)
+    form = forms.SenderForm(request.POST if request.method == 'POST' else None, instance=sender)
+    if request.method == 'POST' and form.is_valid():
+        form.save()
+        messages.success(request, 'Remetente salvo. Os dados serão usados nas próximas etiquetas.')
+        return redirect('shipping_label', pk=pk)
+    missing = address_missing(consignment.client)
+    ready = bool(sender.pk and not address_missing(sender) and sender.name.strip() and not missing)
+    # A bound invalid form may contain unsaved data; never offer a print based on it.
+    if request.method == 'POST':
+        ready = False
+    return render(request, 'shipping_label_setup.html', {
+        'title': 'Etiqueta da maleta', 'nav_active': 'consignments', 'consignment': consignment,
+        'sender_form': form, 'missing_address': missing, 'label_ready': ready,
+    })
+
+
+def shipping_label_print(request, pk):
+    consignment = get_object_or_404(Consignment.objects.select_related('client'), pk=pk)
+    sender = SenderProfile.objects.filter(pk=1).first()
+    if not sender or address_missing(sender) or not sender.name.strip() or address_missing(consignment.client):
+        messages.error(request, 'Complete os endereços da revendedora e do remetente antes de imprimir a etiqueta.')
+        return redirect('shipping_label', pk=pk)
+    return render(request, 'shipping_label_print.html', {'consignment': consignment, 'recipient': consignment.client, 'sender': sender})
+
+
+def consignment_detail(request, pk, document_form=None):
     consignment = get_object_or_404(consignment_queryset(), pk=pk)
     return render(request, 'consignment_detail.html', {
         'nav_active': 'consignments', 'title': consignment.code, 'consignment': consignment, 'items': consignment.items.all(),
         'contacts': consignment.contacts.all(), 'payments': consignment.payments.all(),
         'payment_form': forms.PaymentForm(initial={'amount': consignment.balance}),
+        'tracking_form': forms.TrackingForm(instance=consignment),
+        'document_form': document_form if document_form is not None else forms.SignedDocumentForm(),
+        'return_item_data': [{
+            'id': item.pk, 'name': item.product_name or item.product.name,
+            'codes': list({code for code in (item.product.ean13, item.product.sku, item.product_sku) if code}),
+            'sku': item.product_sku or item.product.sku, 'pending': item.pending_quantity,
+            'sold': item.sold_quantity, 'returned': item.returned_quantity,
+        } for item in consignment.items.all()] if consignment.status == 'sent' else [],
     })
+
+
+@require_POST
+def consignment_document_upload(request, pk):
+    get_object_or_404(Consignment, pk=pk)
+    form = forms.SignedDocumentForm(request.POST, request.FILES)
+    if form.is_valid():
+        try:
+            with transaction.atomic():
+                consignment = get_object_or_404(Consignment.objects.select_for_update(), pk=pk)
+                if consignment.signed_document and not form.cleaned_data['replace_document']:
+                    form.add_error('replace_document', 'Confirme a substituição do arquivo atual.')
+                else:
+                    consignment.signed_document = form.cleaned_data['signed_document']
+                    consignment.signed_document_uploaded_at = timezone.now()
+                    consignment.save(update_fields=['signed_document', 'signed_document_uploaded_at', 'updated_at'])
+                    messages.success(request, 'Romaneio assinado anexado à consignação.')
+                    return redirect('consignment_detail', pk=pk)
+        except OSError:
+            form.add_error(None, 'Não foi possível salvar o PDF. Confira o espaço em disco e tente novamente.')
+    return consignment_detail(request, pk, document_form=form)
+
+
+def consignment_document(request, pk):
+    consignment = get_object_or_404(Consignment, pk=pk)
+    document = consignment.signed_document
+    if not document:
+        raise Http404('Nenhum romaneio assinado anexado.')
+    try:
+        response = FileResponse(document.open('rb'), content_type='application/pdf',
+                                as_attachment=request.GET.get('download') == '1',
+                                filename=f'{consignment.code}-romaneio-assinado.pdf')
+    except (OSError, ValueError):
+        raise Http404('Arquivo do romaneio não encontrado.')
+    response['Cache-Control'] = 'private, no-store'
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['Content-Security-Policy'] = "sandbox"
+    return response
+
+
+@require_POST
+def consignment_returns(request, pk):
+    consignment = get_object_or_404(Consignment, pk=pk)
+    raw = request.POST.get('entries', '')
+    if len(raw) > 50000:
+        return JsonResponse({'error': 'A conferência excedeu o tamanho permitido.'}, status=400)
+    try:
+        entries = json.loads(raw)
+    except (ValueError, TypeError):
+        return JsonResponse({'error': 'Não foi possível ler a conferência de devolução.'}, status=400)
+    try:
+        count = services.return_scanned_items(consignment, entries)
+    except ValidationError as error:
+        return JsonResponse({'error': ' '.join(error.messages)}, status=409)
+    messages.success(request, f'Devolução confirmada: {count} unidade(s) retornaram ao estoque.')
+    return JsonResponse({'ok': True, 'returned': count})
+
+
+@require_POST
+def consignment_tracking(request, pk):
+    with transaction.atomic():
+        consignment = get_object_or_404(Consignment.objects.select_for_update(), pk=pk)
+        if consignment.status == Consignment.Status.CANCELLED:
+            messages.error(request, 'Não é possível alterar os dados de envio de uma consignação cancelada.')
+        else:
+            form = forms.TrackingForm(request.POST, instance=consignment)
+            if form.is_valid():
+                saved = form.save(commit=False)
+                saved.save(update_fields=['shipping_responsible', 'shipping_method', 'tracking_code', 'updated_at'])
+                messages.success(request, 'Dados de envio atualizados. Responsável, tipo de envio e rastreio aparecem no romaneio.')
+            else:
+                for errors in form.errors.values():
+                    for error in errors:
+                        messages.error(request, error)
+    return redirect('consignment_detail', pk=pk)
 
 
 @require_POST
@@ -271,8 +393,8 @@ def consignment_action(request, pk):
     consignment = get_object_or_404(Consignment, pk=pk)
     action = request.POST.get('action')
     handlers = {'send': (services.send_consignment, 'Envio confirmado. Estoque atualizado.'),
-                'close': (services.close_consignment, 'Consignação encerrada com todas as peças e recebimentos conferidos.'),
-                'cancel': (services.cancel_consignment, 'Rascunho cancelado.')}
+                'close': (services.close_consignment, 'Consignação FINALIZADA com todas as peças e recebimentos conferidos.'),
+                'cancel': (services.cancel_consignment, 'Consignação cancelada.')}
     if action not in handlers:
         return HttpResponseBadRequest('Ação inválida.')
     try:
@@ -340,6 +462,20 @@ def product_label(request, pk):
     return render(request, 'product_label.html', {'product': product})
 
 
+def product_photo(request, name):
+    # Serve only photos referenced by a product, also with DEBUG=False / Waitress.
+    if request.method not in ('GET', 'HEAD'):
+        return HttpResponse(status=405, headers={'Allow': 'GET, HEAD'})
+    product = get_object_or_404(Product, photo=name)
+    try:
+        response = FileResponse(product.photo.open('rb'), content_type='image/jpeg')
+    except (FileNotFoundError, ValueError):
+        raise Http404('Foto não encontrada.')
+    response['X-Content-Type-Options'] = 'nosniff'
+    response['Cache-Control'] = 'private, max-age=3600'
+    return response
+
+
 def product_barcode(request, pk):
     from barcode import EAN13
     product = get_object_or_404(Product, pk=pk)
@@ -359,7 +495,7 @@ def consignment_print(request, pk):
 def backups(request):
     folder = settings.BASE_DIR / 'backups'
     files = [{'name': p.name, 'size': p.stat().st_size, 'modified': timezone.datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.get_current_timezone())}
-             for p in sorted([*folder.glob('*.dump'), *folder.glob('*.sqlite3')], reverse=True)] if folder.exists() else []
+             for p in sorted([*folder.glob('*.dump'), *folder.glob('*.sqlite3'), *folder.glob('*.zip')], reverse=True)] if folder.exists() else []
     return render(request, 'backups.html', {'nav_active': 'backups', 'title': 'Backup e dados', 'backups': files})
 
 
@@ -370,4 +506,5 @@ def backup_download(request):
     except BackupError as error:
         messages.error(request, str(error))
         return redirect('backups')
-    return FileResponse(path.open('rb'), as_attachment=True, filename=path.name, content_type='application/octet-stream')
+    return FileResponse(path.open('rb'), as_attachment=True, filename=path.name,
+                        content_type='application/zip' if path.suffix == '.zip' else 'application/octet-stream')

@@ -1,0 +1,6 @@
+<div class="postal-name">{{ person.name }}</div>
+<div>{{ person.street }}, {{ person.number }}</div>
+{% if person.complement %}<div>{{ person.complement }}</div>{% endif %}
+<div>{{ person.neighborhood }}</div>
+<div>{{ person.city }} - {{ person.state }}</div>
+<div><strong>CEP {{ person.postal_code_display }}</strong>{% if person.phone %}<span class="postal-phone"> · Tel.: {{ person.phone }}</span>{% endif %}</div>

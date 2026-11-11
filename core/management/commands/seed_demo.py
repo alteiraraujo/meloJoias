@@ -91,4 +91,4 @@ class Command(BaseCommand):
         close_consignment(complete)
 
         consignment(clients[4], 0, 15, [(1, 3), (3, 4), (8, 4)], 'Seleção preparada, aguardando envio.', send=False)
-        self.stdout.write(self.style.SUCCESS('Demonstração criada: 10 produtos, 5 clientes e 5 consignações. Todos os dados são fictícios.'))
+        self.stdout.write(self.style.SUCCESS('Demonstração criada: 10 produtos, 5 revendedoras e 5 consignações. Todos os dados são fictícios.'))

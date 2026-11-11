@@ -45,11 +45,13 @@ class AppWorkflowTests(TestCase):
         self.assertEqual(response.status_code, 302, response.content.decode()[:1000])
         consignment = Consignment.objects.get()
         item = consignment.items.get()
+        self.assertContains(self.client.get(reverse('consignment_detail', args=[consignment.pk])), 'AGUARDANDO ENVIO')
         self.assertEqual(item.unit_price, Decimal('125.50'))
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock_quantity, 10)
         self.assertEqual(self.client.get(reverse('consignment_detail', args=[consignment.pk])).status_code, 200)
         self.client.post(reverse('consignment_action', args=[consignment.pk]), {'action': 'send'})
+        self.assertContains(self.client.get(reverse('consignment_detail', args=[consignment.pk])), 'EM TRÂNSITO')
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock_quantity, 6)
         self.client.post(reverse('item_settle', args=[item.pk]), {'sold': '3', 'returned': '1'})
@@ -62,6 +64,7 @@ class AppWorkflowTests(TestCase):
         self.client.post(reverse('consignment_action', args=[consignment.pk]), {'action': 'close'})
         consignment.refresh_from_db()
         self.assertEqual(consignment.status, 'closed')
+        self.assertContains(self.client.get(reverse('consignment_detail', args=[consignment.pk])), 'FINALIZADO')
         self.assertEqual(self.client.get(reverse('consignment_print', args=[consignment.pk])).status_code, 200)
 
     def test_foreign_reference_rejected(self):
@@ -70,7 +73,7 @@ class AppWorkflowTests(TestCase):
         response = self.client.post(reverse('consignment_create'), self.draft_data(contacts=[foreign_contact.pk]))
         self.assertEqual(response.status_code, 200)
         self.assertFalse(Consignment.objects.exists())
-        self.assertContains(response, 'Selecione apenas contatos')
+        self.assertContains(response, 'Selecione apenas referências')
 
     def test_duplicate_products_and_invalid_dates_rejected(self):
         data = self.draft_data(**{'items-TOTAL_FORMS': '2', 'items-1-product': self.product.pk,

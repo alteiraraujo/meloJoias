@@ -3,10 +3,11 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#181a19">
+  <meta name="theme-color" content="#080808">
   <title>{% block title %}{{ title|default:'Visão geral' }}{% endblock %} · Melo Joias</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=scanner-1">
-  <script src="{% static 'js/app.js' %}?v=scanner-1" defer></script>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=shipping-1">
+  <link rel="stylesheet" href="{% static 'css/contrast.css' %}?v=shipping-1">
+  <script src="{% static 'js/app.js' %}?v=shipping-1" defer></script>
 </head>
 <body>
 <svg class="svg-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -43,12 +44,12 @@
     <a class="nav-item {% if nav_active == 'dashboard' %}active{% endif %}" href="{% url 'dashboard' %}" {% if nav_active == 'dashboard' %}aria-current="page"{% endif %}><svg><use href="#i-grid"/></svg>Visão geral</a>
     <a class="nav-item {% if nav_active == 'consignments' %}active{% endif %}" href="{% url 'consignment_list' %}" {% if nav_active == 'consignments' %}aria-current="page"{% endif %}><svg><use href="#i-box"/></svg>Consignações</a>
     <a class="nav-item {% if nav_active == 'products' %}active{% endif %}" href="{% url 'entity_list' 'products' %}" {% if nav_active == 'products' %}aria-current="page"{% endif %}><svg><use href="#i-gem"/></svg>Produtos</a>
-    <a class="nav-item {% if nav_active == 'clients' %}active{% endif %}" href="{% url 'entity_list' 'clients' %}" {% if nav_active == 'clients' %}aria-current="page"{% endif %}><svg><use href="#i-users"/></svg>Clientes</a>
+    <a class="nav-item {% if nav_active == 'clients' %}active{% endif %}" href="{% url 'entity_list' 'clients' %}" {% if nav_active == 'clients' %}aria-current="page"{% endif %}><svg><use href="#i-users"/></svg>Revendedoras</a>
     <p class="nav-label second">ORGANIZAÇÃO</p>
     <a class="nav-item {% if nav_active == 'categories' %}active{% endif %}" href="{% url 'entity_list' 'categories' %}"><svg><use href="#i-tag"/></svg>Categorias</a>
     <a class="nav-item {% if nav_active == 'costs' %}active{% endif %}" href="{% url 'entity_list' 'costs' %}"><svg><use href="#i-wallet"/></svg>Custos</a>
     <a class="nav-item {% if nav_active == 'cost-types' %}active{% endif %}" href="{% url 'entity_list' 'cost-types' %}"><svg><use href="#i-file"/></svg>Tipos de custo</a>
-    <a class="nav-item {% if nav_active == 'contacts' %}active{% endif %}" href="{% url 'entity_list' 'contacts' %}"><svg><use href="#i-contact"/></svg>Contatos</a>
+    <a class="nav-item {% if nav_active == 'contacts' %}active{% endif %}" href="{% url 'entity_list' 'contacts' %}"><svg><use href="#i-contact"/></svg>Referências</a>
   </nav>
   <div class="sidebar-bottom"><a class="nav-item {% if nav_active == 'backups' %}active{% endif %}" href="{% url 'backups' %}"><svg><use href="#i-shield"/></svg>Backup e dados</a><div class="local-status"><span class="status-dot"></span><div>Ambiente local<small>Seus dados, no seu computador.</small></div></div></div>
 </aside>

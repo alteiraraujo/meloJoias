@@ -6,6 +6,7 @@ from django.db import models
 from django.db.models import F, Q
 from django.utils import timezone
 from .labels import generate_internal_ean, validate_ean13
+from .addresses import STATES, validate_postal_code, address_lines, address_missing, postal_code_display
 
 
 ZERO = Decimal('0.00')
@@ -44,6 +45,7 @@ class Product(ValidatedModel):
     category = models.ForeignKey(Category, on_delete=models.PROTECT, verbose_name='categoria')
     description = models.TextField('descrição', blank=True)
     sale_price = models.DecimalField('preço de venda', max_digits=12, decimal_places=2, validators=MONEY_VALIDATORS)
+    photo = models.ImageField('foto do produto', upload_to='products/', blank=True)
     stock_quantity = models.PositiveIntegerField('estoque disponível', default=0)
     minimum_stock = models.PositiveIntegerField('estoque mínimo', default=3)
     active = models.BooleanField('ativo', default=True)
@@ -106,7 +108,32 @@ class ProductCost(ValidatedModel):
         return f'{self.product.name} · {self.cost_type.name}'
 
 
-class Client(ValidatedModel):
+class PostalAddress(ValidatedModel):
+    postal_code = models.CharField('CEP', max_length=9, blank=True, validators=[validate_postal_code])
+    street = models.CharField('logradouro', max_length=100, blank=True)
+    number = models.CharField('número', max_length=15, blank=True)
+    complement = models.CharField('complemento', max_length=80, blank=True)
+    neighborhood = models.CharField('bairro', max_length=80, blank=True)
+    city = models.CharField('cidade', max_length=80, blank=True)
+    state = models.CharField('UF', max_length=2, blank=True, choices=STATES)
+
+    class Meta:
+        abstract = True
+
+    @property
+    def postal_code_display(self):
+        return postal_code_display(self.postal_code)
+
+
+class SenderProfile(PostalAddress):
+    name = models.CharField('nome / empresa do remetente', max_length=160, default='Melo Joias')
+    phone = models.CharField('telefone', max_length=30, blank=True)
+
+    class Meta:
+        verbose_name = 'remetente'
+
+
+class Client(PostalAddress):
     name = models.CharField('nome', max_length=160)
     document = models.CharField('CPF / CNPJ', max_length=25, blank=True)
     phone = models.CharField('telefone', max_length=30, blank=True)
@@ -118,14 +145,18 @@ class Client(ValidatedModel):
 
     class Meta:
         ordering = ['name']
-        verbose_name = 'cliente'
+        verbose_name = 'revendedora'
 
     def __str__(self):
         return self.name
 
+    @property
+    def mailing_address(self):
+        return address_lines(self) if not address_missing(self) else self.address
+
 
 class Contact(ValidatedModel):
-    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='contacts', verbose_name='cliente')
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, related_name='contacts', verbose_name='revendedora')
     name = models.CharField('nome', max_length=160)
     relationship = models.CharField('vínculo / referência', max_length=100, blank=True)
     phone = models.CharField('telefone', max_length=30, blank=True)
@@ -134,7 +165,7 @@ class Contact(ValidatedModel):
 
     class Meta:
         ordering = ['name']
-        verbose_name = 'contato'
+        verbose_name = 'referência'
 
     def __str__(self):
         return f'{self.name} ({self.client.name})'
@@ -142,22 +173,27 @@ class Contact(ValidatedModel):
     def clean(self):
         super().clean()
         if self.pk and self.client_id and self.consignmentcontact_set.exclude(consignment__client_id=self.client_id).exists():
-            raise ValidationError({'client': 'Este contato é referência de uma consignação de outra cliente.'})
+            raise ValidationError({'client': 'Esta referência está vinculada a uma consignação de outra revendedora.'})
 
 
 class Consignment(ValidatedModel):
     class Status(models.TextChoices):
-        DRAFT = 'draft', 'Rascunho'
-        SENT = 'sent', 'Em andamento'
-        CLOSED = 'closed', 'Encerrada'
+        DRAFT = 'draft', 'AGUARDANDO ENVIO'
+        SENT = 'sent', 'EM TRÂNSITO'
+        CLOSED = 'closed', 'FINALIZADO'
         CANCELLED = 'cancelled', 'Cancelada'
 
-    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='consignments', verbose_name='cliente')
+    client = models.ForeignKey(Client, on_delete=models.PROTECT, related_name='consignments', verbose_name='revendedora')
     sent_date = models.DateField('data de envio', default=timezone.localdate)
+    tracking_code = models.CharField('código de rastreio', max_length=80, blank=True)
+    shipping_responsible = models.CharField('responsável pelo envio', max_length=160, blank=True)
+    shipping_method = models.CharField('tipo de envio', max_length=80, blank=True)
+    signed_document = models.FileField('romaneio assinado', upload_to='signed-documents/', blank=True)
+    signed_document_uploaded_at = models.DateTimeField('data do upload do romaneio', null=True, blank=True)
     due_date = models.DateField('data de acerto')
     notes = models.TextField('observações', blank=True)
     status = models.CharField('situação', max_length=12, choices=Status.choices, default=Status.DRAFT)
-    contacts = models.ManyToManyField(Contact, through='ConsignmentContact', blank=True, verbose_name='contatos de referência')
+    contacts = models.ManyToManyField(Contact, through='ConsignmentContact', blank=True, verbose_name='referências')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -179,7 +215,7 @@ class Consignment(ValidatedModel):
         # saving the client. Validate their selected contacts in the form and
         # revalidate every saved reference before shipping.
         if self.pk and self.status != self.Status.DRAFT and self.client_id and self.consignmentcontact_set.exclude(contact__client_id=self.client_id).exists():
-            raise ValidationError({'client': 'Os contatos de referência devem pertencer à cliente selecionada.'})
+            raise ValidationError({'client': 'As referências devem pertencer à revendedora selecionada.'})
 
     @property
     def code(self):
@@ -220,7 +256,7 @@ class ConsignmentContact(ValidatedModel):
     def clean(self):
         super().clean()
         if self.consignment_id and self.contact_id and self.consignment.client_id != self.contact.client_id:
-            raise ValidationError({'contact': 'O contato de referência deve pertencer à cliente da consignação.'})
+            raise ValidationError({'contact': 'A referência deve pertencer à revendedora da consignação.'})
 
 
 class ConsignmentItem(ValidatedModel):
@@ -253,7 +289,7 @@ class ConsignmentItem(ValidatedModel):
         if self.consignment_id and self.consignment.status != Consignment.Status.DRAFT:
             previous = type(self).objects.filter(pk=self.pk).first() if self.pk else None
             if not previous:
-                raise ValidationError('Só é possível incluir produtos em consignações em rascunho.')
+                raise ValidationError('Só é possível incluir produtos em consignações aguardando envio.')
             historical = ['consignment_id', 'product_id', 'quantity', 'unit_price', 'product_name', 'product_sku', 'unit_cost']
             if any(getattr(self, field) != getattr(previous, field) for field in historical):
                 raise ValidationError('Os dados dos produtos enviados são históricos e não podem ser alterados.')
@@ -292,7 +328,7 @@ class Payment(ValidatedModel):
         super().clean()
         if self.consignment_id:
             if self.consignment.status != Consignment.Status.SENT:
-                raise ValidationError('Pagamentos só podem ser registrados em consignações em andamento.')
+                raise ValidationError('Pagamentos só podem ser registrados em consignações em trânsito.')
             if self.amount is not None:
                 already_paid = sum((p.amount for p in self.consignment.payments.exclude(pk=self.pk)), ZERO)
                 if already_paid + self.amount > self.consignment.sold_value:

@@ -9,6 +9,7 @@ import sqlite3
 import subprocess
 import sys
 import uuid
+import zipfile
 
 
 class BackupError(RuntimeError):
@@ -81,7 +82,7 @@ def _create_postgresql_backup():
             backup_path.unlink(missing_ok=True)
 
 
-def create_backup():
+def create_database_backup():
     """Return a complete .sqlite3 snapshot or PostgreSQL .dump under backups/."""
     from django.conf import settings
     from django.db import connection
@@ -110,6 +111,45 @@ def create_backup():
     finally:
         if not completed:
             destination.unlink(missing_ok=True)
+
+
+def create_backup():
+    """Include referenced photos and signed PDFs with the database snapshot."""
+    from django.conf import settings
+    database = create_database_backup()
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    if database.suffix == '.sqlite3':
+        with closing(sqlite3.connect(database)) as snapshot:
+            columns = {row[1] for row in snapshot.execute('PRAGMA table_info(core_product)')}
+            names = [row[0] for row in snapshot.execute("SELECT photo FROM core_product WHERE photo <> ''")] if 'photo' in columns else []
+            document_columns = {row[1] for row in snapshot.execute('PRAGMA table_info(core_consignment)')}
+            if 'signed_document' in document_columns:
+                names.extend(row[0] for row in snapshot.execute("SELECT signed_document FROM core_consignment WHERE signed_document <> ''"))
+    else:
+        # Keep all immutable image files to cover the concurrent pg_dump snapshot.
+        names = [p.relative_to(media_root).as_posix() for p in media_root.rglob('*') if p.is_file()] if media_root.exists() else []
+    if not names:
+        return database
+    archive = database.with_suffix('.zip')
+    temporary = archive.with_suffix('.zip.tmp')
+    try:
+        db_name = 'demo.sqlite3' if settings.DEMO_MODE else 'melo.sqlite3'
+        if database.suffix == '.dump':
+            db_name = 'database.dump'
+        media_dir = 'demo-media' if settings.DEMO_MODE else 'media'
+        with zipfile.ZipFile(temporary, 'w', compression=zipfile.ZIP_DEFLATED) as output:
+            output.write(database, f'data/{db_name}')
+            for name in sorted(set(names)):
+                photo = (media_root / name).resolve()
+                if not photo.is_relative_to(media_root) or not photo.is_file():
+                    raise BackupError('Uma foto ou PDF anexado não foi encontrado. O backup completo não foi gerado; confira os arquivos locais.')
+                output.write(photo, f'data/{media_dir}/{photo.relative_to(media_root).as_posix()}')
+        temporary.replace(archive)
+        return archive
+    except (OSError, zipfile.BadZipFile) as exc:
+        raise BackupError('Não foi possível incluir as fotos e PDFs no backup. Confira permissões e espaço em disco.') from exc
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 if __name__ == '__main__':

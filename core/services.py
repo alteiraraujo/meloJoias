@@ -43,7 +43,7 @@ def send_consignment(consignment):
     current = Consignment.objects.select_for_update().select_related('client').get(pk=consignment.pk)
     _require_status(current, Consignment.Status.DRAFT)
     if not current.client.active:
-        raise ValidationError('Ative a cliente antes de enviar uma consignação.')
+        raise ValidationError('Ative a revendedora antes de enviar uma consignação.')
     current.full_clean()
     items = list(current.items.select_for_update().order_by('product_id'))
     if not items:
@@ -111,6 +111,39 @@ def add_payment(consignment, amount, paid_date, method, notes=''):
     payment.save()
     consignment.refresh_from_db()
     return payment
+
+
+@transaction.atomic
+def return_scanned_items(consignment, entries):
+    """Confirm a checked batch once, rejecting stale or duplicated submissions."""
+    if not isinstance(entries, list) or not 1 <= len(entries) <= 100:
+        raise ValidationError('Confira entre 1 e 100 produtos para devolver.')
+    quantities = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise ValidationError('A lista de devoluções é inválida.')
+        for field in ('item_id', 'quantity', 'expected_sold', 'expected_returned'):
+            _integer(entry.get(field), 'O valor da conferência')
+        if entry['item_id'] < 1 or entry['quantity'] < 1:
+            raise ValidationError('Informe ao menos uma unidade por produto.')
+        if entry['item_id'] in quantities:
+            raise ValidationError('Há produtos repetidos na conferência.')
+        quantities[entry['item_id']] = entry
+    current = Consignment.objects.select_for_update().get(pk=consignment.pk)
+    _require_status(current, Consignment.Status.SENT)
+    items = list(current.items.select_for_update().filter(pk__in=quantities).order_by('product_id'))
+    if len(items) != len(quantities):
+        raise ValidationError('Um dos produtos não pertence a esta consignação.')
+    # Validate the entire batch before restoring any stock.
+    for item in items:
+        entry = quantities[item.pk]
+        if item.sold_quantity != entry['expected_sold'] or item.returned_quantity != entry['expected_returned']:
+            raise ValidationError('O acerto mudou ou esta devolução já foi registrada. Recarregue a página e confira o saldo antes de continuar.')
+        if entry['quantity'] > item.pending_quantity:
+            raise ValidationError(f'{item.product_name or item.product.name}: existem somente {item.pending_quantity} unidades pendentes.')
+    for item in items:
+        settle_item(item, returned=quantities[item.pk]['quantity'])
+    return sum(entry['quantity'] for entry in quantities.values())
 
 
 @transaction.atomic

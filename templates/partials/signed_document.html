@@ -1,0 +1,21 @@
+<section class="panel extra-panel" id="signed-document">
+  <header class="panel-header"><div><h2>Romaneio assinado</h2><p>Guarde o PDF assinado pela revendedora junto desta consignação.</p></div></header>
+  <div class="payment-form">
+    {% if consignment.signed_document %}
+      <p><strong>PDF anexado</strong> · {{ consignment.signed_document_uploaded_at|date:'d/m/Y H:i' }}</p>
+      <div class="button-group">
+        <a class="button secondary" href="{% url 'consignment_document' consignment.pk %}" target="_blank" rel="noopener">Abrir PDF</a>
+        <a class="button secondary" href="{% url 'consignment_document' consignment.pk %}?download=1">Baixar PDF</a>
+      </div>
+    {% else %}<p class="muted">Nenhum romaneio assinado anexado.</p>{% endif %}
+    <form method="post" enctype="multipart/form-data" action="{% url 'consignment_document_upload' consignment.pk %}#signed-document">
+      {% csrf_token %}
+      {% if document_form.non_field_errors %}<div class="alert error">{{ document_form.non_field_errors }}</div>{% endif %}
+      <div class="form-grid">{% with field=document_form.signed_document %}{% include 'partials/field.html' %}{% endwith %}</div>
+      {% if consignment.signed_document %}
+        <div class="form-field"><label for="{{ document_form.replace_document.id_for_label }}">{{ document_form.replace_document }} {{ document_form.replace_document.label }}</label>{{ document_form.replace_document.errors }}</div>
+      {% endif %}
+      <button class="button primary" type="submit">{% if consignment.signed_document %}Substituir PDF{% else %}Anexar PDF assinado{% endif %}</button>
+    </form>
+  </div>
+</section>

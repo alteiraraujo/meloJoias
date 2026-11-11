@@ -21,6 +21,45 @@
     if (!window.confirm(button.dataset.confirm)) event.preventDefault();
   }));
 
+  const photoInput = $('#id_photo');
+  if (photoInput) {
+    const preview = $('#product-photo-preview');
+    const empty = $('#product-photo-empty');
+    const status = $('#product-photo-status');
+    const clear = $('#photo-clear_id');
+    let objectUrl;
+    const renderPhoto = () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = null;
+      const file = photoInput.files[0];
+      photoInput.setCustomValidity('');
+      status.classList.remove('text-danger');
+      let source = clear?.checked ? '' : preview.dataset.originalSrc || '';
+      if (file && !clear?.checked) {
+        if (file.size > 5 * 1024 * 1024) {
+          photoInput.setCustomValidity('A foto deve ter no máximo 5 MB.');
+          status.textContent = 'A foto deve ter no máximo 5 MB. Escolha um arquivo menor.';
+          status.classList.add('text-danger');
+        } else {
+          objectUrl = URL.createObjectURL(file);
+          source = objectUrl;
+          status.textContent = 'Nova foto selecionada. Clique em Salvar cadastro para confirmar.';
+        }
+      } else status.textContent = clear?.checked ? 'A foto será removida ao salvar o cadastro.' : '';
+      preview.hidden = !source;
+      empty.hidden = Boolean(source);
+      if (source) preview.src = source;
+      else preview.removeAttribute('src');
+    };
+    photoInput.addEventListener('change', () => { if (clear) clear.checked = false; renderPhoto(); });
+    clear?.addEventListener('change', () => { if (clear.checked) photoInput.value = ''; renderPhoto(); });
+    preview.addEventListener('error', () => {
+      preview.hidden = true; empty.hidden = false;
+      status.textContent = 'Não foi possível exibir a foto. Escolha uma imagem JPG, PNG ou WebP válida.';
+      status.classList.add('text-danger');
+    });
+  }
+
   const form = $('#consignment-form');
   if (!form) return;
   const readJSON = (id) => {
@@ -236,7 +275,7 @@
     }
     if (contactsField) contactsField.hidden = count === 0;
     contactsEmpty.hidden = count > 0;
-    contactsEmpty.textContent = clientId ? 'Esta cliente ainda não possui contatos de referência cadastrados.' : 'Selecione uma cliente para ver seus contatos de referência.';
+    contactsEmpty.textContent = clientId ? 'Esta revendedora ainda não possui referências cadastradas.' : 'Selecione uma revendedora para ver suas referências.';
   };
   clientSelect?.addEventListener('change', filterContacts);
   filterContacts();
